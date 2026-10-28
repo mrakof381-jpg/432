@@ -1,0 +1,88 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  VITE_APP_MODE: demo
+  VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+  VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+  VITE_BTC_BITCOIN_ADDRESS: ${{ vars.VITE_BTC_BITCOIN_ADDRESS }}
+  VITE_ETH_ERC20_ADDRESS: ${{ vars.VITE_ETH_ERC20_ADDRESS }}
+  VITE_USDT_BSC_ADDRESS: ${{ vars.VITE_USDT_BSC_ADDRESS }}
+  VITE_USDT_TRON_ADDRESS: ${{ vars.VITE_USDT_TRON_ADDRESS }}
+  VITE_USDT_ETH_ADDRESS: ${{ vars.VITE_USDT_ETH_ADDRESS }}
+  VITE_USDT_SOL_ADDRESS: ${{ vars.VITE_USDT_SOL_ADDRESS }}
+  VITE_SOL_SOLANA_ADDRESS: ${{ vars.VITE_SOL_SOLANA_ADDRESS }}
+  VITE_TRX_TRON_ADDRESS: ${{ vars.VITE_TRX_TRON_ADDRESS }}
+  VITE_BNB_BSC_ADDRESS: ${{ vars.VITE_BNB_BSC_ADDRESS }}
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+    permissions:
+      contents: read
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Secret scan
+        run: npm run secret-scan
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [secret-scan, validate]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
